@@ -43,7 +43,7 @@ exports.endTransaction = (
 );
 
 exports.lockJob = (
-  'UPDATE jobs SET (status, "processingStartTime") = (\'processing\', NOW()) WHERE id = $1'
+  'UPDATE jobs SET (status, "processingStartTime") = (\'processing\', NOW()) WHERE id = $1 AND status = \'pending\''
 );
 
 exports.createJob = (
