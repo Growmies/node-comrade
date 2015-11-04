@@ -4,7 +4,56 @@ var Promise = require('bluebird');
 var sql     = require('./sql');
 
 
-function Comrade(connectionOptions, cb, id) {
+function Consumer(connectionOptions, cb, id) {
+  var self          = this;
+  self.id           = id;
+  cb                = cb || _.noop;
+  this.jobPromises  = {};
+  this.listening    = false;
+
+  pg.connect(connectionOptions, function(err, client) {
+    if (err) return cb(err);
+    self.client = client;
+    return cb(null, client);
+  });
+
+  this.destroy = function() {
+    this.client.end();
+  };
+
+  this.createJob = function(job, cb) {
+    return new Promise(function(resolve, reject) {
+      self.client.query(sql.createJob, [job], function(err, results) {
+        if (err) return reject(err);
+        self.jobPromises[results.rows[0].id] = { resolve: resolve, reject: reject };
+        if (!self.listening) {
+          self.listen();
+        }
+      });
+    })
+  };
+
+  this.listen = function() {
+    this.client.query('LISTEN "jobChange"');
+    this.client.on('notification', function(notification) {
+      var parts   = notification.payload.split('::');
+      var jobId   = parseInt(parts[0]);
+      var payload = JSON.parse(parts[1]);
+      var status  = parts[2];
+      var result  = JSON.parse(parts[3]);
+
+
+      if (!_.contains(['done', 'error'], status)) return;
+      if (!self.jobPromises[jobId]) return;
+
+      var method = status === 'done' ? self.jobPromises[jobId].resolve : self.jobPromises[jobId].reject;
+      method(result);
+      delete self.jobPromises[jobId];
+    });
+  };
+}
+
+function Worker(connectionOptions, cb, id) {
   var self          = this;
   self.id           = id;
   self.queue        = [];
@@ -34,30 +83,15 @@ function Comrade(connectionOptions, cb, id) {
       var status  = parts[2];
       var result  = JSON.parse(parts[3]);
 
-      switch(status) {
-        case 'pending':
-          self.attemptToProcess({
-            jobId: jobId,
-            payload: payload,
-            status: status,
-            result: result
-          });
-          break;
-        case 'done':
-          if (self.jobCallbacks[jobId]) {
-           self.jobCallbacks[jobId](null, result);
-          }
-          delete self.jobCallbacks[jobId];
-          self.checkQueueForJobs();
-          break;
-        case 'error':
-          if (self.jobCallbacks[jobId]) {
-           self.jobCallbacks[jobId](result);
-          }
-          delete self.jobCallbacks[jobId];
-          self.checkQueueForJobs();
-          break;
+      if (status === 'pending') {
+        self.attemptToProcess({
+          jobId: jobId,
+          payload: payload,
+          status: status,
+          result: result
+        });
       }
+
     });
   },
 
@@ -72,6 +106,7 @@ function Comrade(connectionOptions, cb, id) {
       if (err) return console.log(self.id, 'There was a big error', err);
       if (gotLock) {
         self.locked = false;
+        self.checkQueueForJobs();
         self.workerFunction(job.payload, function(err, result) {
           if (err) return self.markJobAsDoneWithError(job.jobId, err);
           self.markJobAsDone(job.jobId, result);
@@ -106,13 +141,6 @@ function Comrade(connectionOptions, cb, id) {
     });
   };
 
-  this.createJob = function(job, cb) {
-    this.client.query(sql.createJob, [job], function(err, results) {
-      if (err) return cb(err);
-      self.jobCallbacks[results.rows[0].id] = cb;
-    });
-  }
-
   this.lockJob = function(jobId, cb) {
     this.client.query(sql.beginTransaction, function(err) {
       if (err) return cb(err);
@@ -137,5 +165,6 @@ function Comrade(connectionOptions, cb, id) {
 }
 
 module.exports = {
-  Comrade: Comrade
+  Worker: Worker,
+  Consumer: Consumer
 };

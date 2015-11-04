@@ -1,29 +1,38 @@
 var expect  = require('chai').expect;
 var comrade = require('../');
 var _       = require('lodash');
-var Comrade;
+var Worker;
+var Consumer;
 
 beforeEach(function(done) {
-  Comrade = new comrade.Comrade('postgres://localhost/postgres', function(err, client) {
-    Comrade.deleteAllJobs(function(err, results) {
-      done();
+  var iAmDone = _.after(2, done);
+
+  Worker = new comrade.Worker('postgres://localhost/postgres', function(err, client) {
+    Worker.deleteAllJobs(function(err, results) {
+      iAmDone()
     });
+  }, 0);
+
+  Consumer = new comrade.Consumer('postgres://localhost/postgres', function(err, client) {
+    iAmDone();
   }, 0);
 });
 
 afterEach(function() {
-  Comrade.destroy();
+  Worker.destroy();
+  Consumer.destroy();
 });
 
 describe('Comrade job processor', function() {
   it('Should pick up a job', function(done) {
-    Comrade.watchForJobs(function multiplier(payload, cb) {
+    Worker.watchForJobs(function multiplier(payload, cb) {
       setTimeout(function() {
         cb(null, {result: payload.input * 2});
       }, 10);
     });
 
-    Comrade.createJob({ input: 4}, function(err, results) {
+    Consumer.createJob({ input: 4})
+    .then(function(results) {
       expect(results.result).to.equal(8);
       done();
     });
@@ -31,7 +40,7 @@ describe('Comrade job processor', function() {
   });
 
   it('Should pick up multiple jobs', function(done) {
-    Comrade.watchForJobs(function multiplier(payload, cb) {
+    Worker.watchForJobs(function multiplier(payload, cb) {
       setTimeout(function() {
         cb(null, {result: payload.input * 2});
       }, payload.timeout);
@@ -39,30 +48,37 @@ describe('Comrade job processor', function() {
 
     var iAmDone = _.after(3, done);
 
-    Comrade.createJob({ input: 4, timeout: 0 }, function(err, results) {
+    Consumer.createJob({ input: 4, timeout: 0 })
+    .then(function(results) {
       expect(results.result).to.equal(8);
       iAmDone();
     });
 
-    Comrade.createJob({ input: 5, timeout: 0 }, function(err, results) {
+    Consumer.createJob({ input: 5, timeout: 0 })
+    .then(function(results) {
       expect(results.result).to.equal(10);
       iAmDone();
     });
 
-    Comrade.createJob({ input: 6, timeout: 0 }, function(err, results) {
+    Consumer.createJob({ input: 6, timeout: 0 })
+    .then(function(results) {
       expect(results.result).to.equal(12);
       iAmDone();
     });
   });
 
   it('Should properly handle errors', function(done) {
-    Comrade.watchForJobs(function workerErrorFunc(payload, cb) {
+    Worker.watchForJobs(function workerErrorFunc(payload, cb) {
       setTimeout(function() {
         cb(new Error('There was a big error'));
       }, payload.timeout);
     });
 
-    Comrade.createJob({ timeout: 0 }, function(err, results) {
+    Consumer.createJob({ timeout: 0 })
+    .then(function(results) {
+      done('This should have thrown an error.')
+    })
+    .catch(function(err) {
       expect(err).to.not.be.a('null');
       done();
     });
@@ -77,64 +93,67 @@ describe('Comrade job processor', function() {
         done();
       });
 
-      Comrade.watchForJobs(function multiplierIdentifier(payload, cb) {
-        cb(null, {result: payload.input * 2, workerId: 0 });
-      });
-      Comrade1.watchForJobs(function multiplierIdentifier(payload, cb) {
+      Worker1.watchForJobs(function multiplierIdentifier(payload, cb) {
         cb(null, {result: payload.input * 2, workerId: 1 });
       });
-      Comrade2.watchForJobs(function multiplierIdentifier(payload, cb) {
+      Worker2.watchForJobs(function multiplierIdentifier(payload, cb) {
         cb(null, {result: payload.input * 2, workerId: 2 });
       });
-      Comrade3.watchForJobs(function multiplierIdentifier(payload, cb) {
+      Worker3.watchForJobs(function multiplierIdentifier(payload, cb) {
         cb(null, {result: payload.input * 2, workerId: 3 });
       });
-      Comrade4.watchForJobs(function multiplierIdentifier(payload, cb) {
+      Worker4.watchForJobs(function multiplierIdentifier(payload, cb) {
         cb(null, {result: payload.input * 2, workerId: 4 });
       });
 
       // Create bunch of jobs now
-      Comrade.createJob({ input: 0 }, function(err, results) {
+      Consumer.createJob({ input: 0 })
+      .then(function(results) {
         representedServers.push(results.workerId);
         expect(results.result).to.equal(0);
         iAmDone();
       });
 
-      Comrade.createJob({ input: 1 }, function(err, results) {
+      Consumer.createJob({ input: 1 })
+      .then(function(results) {
         representedServers.push(results.workerId);
         expect(results.result).to.equal(2);
         iAmDone();
       });
 
-      Comrade.createJob({ input: 2 }, function(err, results) {
+      Consumer.createJob({ input: 2 })
+      .then(function(results) {
         representedServers.push(results.workerId);
         expect(results.result).to.equal(4);
         iAmDone();
       });
 
-      Comrade.createJob({ input: 3 }, function(err, results) {
+      Consumer.createJob({ input: 3 })
+      .then(function(results) {
         representedServers.push(results.workerId);
         expect(results.result).to.equal(6);
         iAmDone();
       });
 
-      Comrade.createJob({ input: 4 }, function(err, results) {
+      Consumer.createJob({ input: 4 })
+      .then(function(results) {
         representedServers.push(results.workerId);
         expect(results.result).to.equal(8);
         iAmDone();
       });
 
-      Comrade.createJob({ input: 5 }, function(err, results) {
+      Consumer.createJob({ input: 5 })
+      .then(function(results) {
         representedServers.push(results.workerId);
         expect(results.result).to.equal(10);
         iAmDone();
       });
     });
 
-    var Comrade1 = new comrade.Comrade('postgres://localhost/postgres', allConnected, 1);
-    var Comrade2 = new comrade.Comrade('postgres://localhost/postgres', allConnected, 2);
-    var Comrade3 = new comrade.Comrade('postgres://localhost/postgres', allConnected, 3);
-    var Comrade4 = new comrade.Comrade('postgres://localhost/postgres', allConnected, 4);
+    var Worker1 = new comrade.Worker('postgres://localhost/postgres', allConnected, 1);
+    var Worker2 = new comrade.Worker('postgres://localhost/postgres', allConnected, 2);
+    var Worker3 = new comrade.Worker('postgres://localhost/postgres', allConnected, 3);
+    var Worker4 = new comrade.Worker('postgres://localhost/postgres', allConnected, 4);
   });
 
 });
