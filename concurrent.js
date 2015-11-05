@@ -14,7 +14,7 @@ if (cluster.isMaster) {
 
     _.each(numbersToProcess, function(num) {
       (function(num) {
-        Consumer.createJob({ input: num })
+        Consumer.createJob('default', { input: num })
         .then(function(results) {
           workerResults.push(results.worker);
           iAmDone();
@@ -26,18 +26,13 @@ if (cluster.isMaster) {
     cluster.fork();
     cluster.fork();
     cluster.fork();
-    cluster.fork();
-    cluster.fork();
-    cluster.fork();
-    cluster.fork();
-    cluster.fork();
   });
   console.log('I am the master!');
 }
 
 if (cluster.isWorker) {
   var Worker = new comrade.Worker('postgres://localhost/postgres', function(err, client) {
-    Worker.watchForJobs(function(payload, cb) {
+    Worker.watchForJobs('default', function(payload, cb) {
       cb(null, { result: payload.input * 2, worker: cluster.worker.id });
     });
   }, cluster.worker.id);
