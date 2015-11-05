@@ -3,7 +3,6 @@ var _       = require('lodash');
 var Promise = require('bluebird');
 var sql     = require('./sql');
 
-
 function Consumer(connectionOptions, cb, id) {
   var self          = this;
   self.id           = id;
@@ -21,10 +20,9 @@ function Consumer(connectionOptions, cb, id) {
     this.client.end();
   };
 
-  this.createJob = function(job, cb) {
+  this.createJob = function(queue, job) {
     return new Promise(function(resolve, reject) {
-      self.client.query(sql.createJob, [job], function(err, results) {
-        if (err) console.log(err);
+      self.client.query(sql.createJob, [queue, job], function(err, results) {
         if (err) return reject(err);
         self.jobPromises[results.rows[0].id] = { resolve: resolve, reject: reject };
       });
@@ -51,9 +49,8 @@ function Consumer(connectionOptions, cb, id) {
 function Worker(connectionOptions, cb, id) {
   var self          = this;
   self.id           = id;
-  self.queue        = [];
+  self.backLog      = [];
   cb                = cb || _.noop;
-  this.jobCallbacks = {};
 
   pg.connect(connectionOptions, function(err, client) {
     if (err) return cb(err);
@@ -65,32 +62,50 @@ function Worker(connectionOptions, cb, id) {
     this.client.end();
   },
 
-  this.watchForJobs = function(workerFunction) {
-    var self = this;
-    self.workerFunction = workerFunction;
+  this.watchForJobs = function(queue, workerFunction) {
+    var self            = this;
+
+    this.queue          = queue;
+    this.workerFunction = workerFunction;
 
     this.client.query('LISTEN "newJob"');
     this.client.on('notification', function(notification) {
       var parts   = notification.payload.split('::');
       var jobId   = parseInt(parts[0]);
-      var payload = JSON.parse(parts[1]);
+      var queue   = parts[1];
+      var payload = JSON.parse(parts[2]);
+
+      if (queue !== self.queue) { // This is not the job we are looking for
+        return;
+      }
 
       self.attemptToProcess({
         jobId: jobId,
         payload: payload
       });
     });
-  },
+
+    this.checkDbForPendingJobs();
+  };
+
+  this.checkDbForPendingJobs = function() {
+    var self = this;
+    this.client.query(sql.getPendingJobs, [this.queue], function(err, results) {
+      _.each(results.rows, function(pendingJob) {
+        self.attemptToProcess(pendingJob);
+      });
+    });
+  };
 
   this.attemptToProcess = function(job) {
     if (self.locked) {
-      self.queue.push(job);
+      self.backLog.push(job);
       return;
     }
 
     self.locked = true;
     self.lockJob(job.jobId, function(err, gotLock) {
-      if (err) return console.log(self.id, 'There was a big error', err);
+      if (err) return self.markJobAsDoneWithError(job.jobId, err);
       if (gotLock) {
         self.workerFunction(job.payload, function(err, result) {
           if (err) return self.markJobAsDoneWithError(job.jobId, err);
@@ -103,7 +118,7 @@ function Worker(connectionOptions, cb, id) {
 
   this.checkQueueForJobs = function() {
     self.locked = false;
-    var job = self.queue.pop();
+    var job = self.backLog.pop();
     if (job) {
       self.attemptToProcess(job);
     }
@@ -127,15 +142,10 @@ function Worker(connectionOptions, cb, id) {
   };
 
   this.lockJob = function(jobId, cb) {
-    // this.client.query(sql.beginTransaction, function(err) {
-      // if (err) return cb(err);
-      self.client.query(sql.lockJob, [jobId], function(err, results) {
-        if (err) return self.rollback(cb.bind(err));
-        // self.client.query(sql.commit, function(err) {
-          cb(err, results.rowCount);
-        // });
-      });
-    // });
+    self.client.query(sql.lockJob, [jobId], function(err, results) {
+      if (err) return self.rollback(cb.bind(err));
+      cb(err, results.rowCount);
+    });
   };
 
   this.rollback = function(cb) {

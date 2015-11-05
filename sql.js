@@ -1,36 +1,15 @@
-exports.findNextJob = (
-  'SELECT * FROM jobs WHERE status = \'pending\' LIMIT 1 FOR UPDATE'
-);
+module.exports = {
+  findNextJob:            'SELECT * FROM jobs WHERE (queue, status) = ($1, \'pending\') LIMIT 1 FOR UPDATE',
+  getPendingJobs:         'SELECT id as "jobId", payload FROM jobs WHERE (queue, status) = ($1, \'pending\')',
+  lockJob:                'UPDATE jobs SET (status, "processingStartTime") = (\'processing\', NOW()) WHERE id = $1 AND status = \'pending\'',
+  createJob:              'INSERT INTO jobs (queue, payload, status, "insertionTime", result) VALUES ($1, $2, \'pending\', NOW(), \'{}\') RETURNING id',
+  markJobAsDone:          'UPDATE jobs SET (status, result, "processingEndTime") = (\'done\', $2, NOW()) WHERE id = $1',
+  markJobAsDoneWithError: 'UPDATE jobs SET (status, result, "processingEndTime") = (\'error\', $2, NOW()) WHERE id = $1',
+  deleteAllJobs:          'DELETE FROM "jobs"',
+  commit:                 'COMMIT',
+  beginTransaction:       'BEGIN',
+  endTransaction:         'ROLLBACK',
+}
 
-exports.commit = (
-  'COMMIT'
-);
 
-exports.beginTransaction = (
-  'BEGIN'
-);
-
-exports.endTransaction = (
-  'ROLLBACK'
-);
-
-exports.lockJob = (
-  'UPDATE jobs SET (status, "processingStartTime") = (\'processing\', NOW()) WHERE id = $1 AND status = \'pending\''
-);
-
-exports.createJob = (
-  'INSERT INTO jobs (payload, status, "insertionTime", result) VALUES ($1, \'pending\', NOW(), \'{}\') RETURNING id'
-);
-
-exports.markJobAsDone = (
-  'UPDATE jobs SET (status, result, "processingEndTime") = (\'done\', $2, NOW()) WHERE id = $1'
-);
-
-exports.markJobAsDoneWithError = (
-  'UPDATE jobs SET (status, result, "processingEndTime") = (\'error\', $2, NOW()) WHERE id = $1'
-);
-
-exports.deleteAllJobs = (
-  'DELETE FROM "jobs"'
-);
 

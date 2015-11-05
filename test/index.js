@@ -25,13 +25,13 @@ afterEach(function() {
 
 describe('Comrade job processor', function() {
   it('Should pick up a job', function(done) {
-    Worker.watchForJobs(function multiplier(payload, cb) {
+    Worker.watchForJobs('default', function multiplier(payload, cb) {
       setTimeout(function() {
         cb(null, {result: payload.input * 2});
       }, 10);
     });
 
-    Consumer.createJob({ input: 4})
+    Consumer.createJob('default', { input: 4})
     .then(function(results) {
       expect(results.result).to.equal(8);
       done();
@@ -40,7 +40,7 @@ describe('Comrade job processor', function() {
   });
 
   it('Should pick up multiple jobs', function(done) {
-    Worker.watchForJobs(function multiplier(payload, cb) {
+    Worker.watchForJobs('default', function multiplier(payload, cb) {
       setTimeout(function() {
         cb(null, {result: payload.input * 2});
       }, payload.timeout);
@@ -48,19 +48,19 @@ describe('Comrade job processor', function() {
 
     var iAmDone = _.after(3, done);
 
-    Consumer.createJob({ input: 4, timeout: 0 })
+    Consumer.createJob('default', { input: 4, timeout: 0 })
     .then(function(results) {
       expect(results.result).to.equal(8);
       iAmDone();
     });
 
-    Consumer.createJob({ input: 5, timeout: 0 })
+    Consumer.createJob('default', { input: 5, timeout: 0 })
     .then(function(results) {
       expect(results.result).to.equal(10);
       iAmDone();
     });
 
-    Consumer.createJob({ input: 6, timeout: 0 })
+    Consumer.createJob('default', { input: 6, timeout: 0 })
     .then(function(results) {
       expect(results.result).to.equal(12);
       iAmDone();
@@ -68,13 +68,13 @@ describe('Comrade job processor', function() {
   });
 
   it('Should properly handle errors', function(done) {
-    Worker.watchForJobs(function workerErrorFunc(payload, cb) {
+    Worker.watchForJobs('default', function workerErrorFunc(payload, cb) {
       setTimeout(function() {
         cb(new Error('There was a big error'));
       }, payload.timeout);
     });
 
-    Consumer.createJob({ timeout: 0 })
+    Consumer.createJob('default', { timeout: 0 })
     .then(function(results) {
       done('This should have thrown an error.')
     })
@@ -95,22 +95,22 @@ describe('Comrade job processor', function() {
         done();
       });
 
-      Worker1.watchForJobs(function multiplierIdentifier(payload, cb) {
+      Worker1.watchForJobs('default', function multiplierIdentifier(payload, cb) {
         cb(null, {result: payload.input * 2, workerId: 1 });
       });
-      Worker2.watchForJobs(function multiplierIdentifier(payload, cb) {
+      Worker2.watchForJobs('default', function multiplierIdentifier(payload, cb) {
         cb(null, {result: payload.input * 2, workerId: 2 });
       });
-      Worker3.watchForJobs(function multiplierIdentifier(payload, cb) {
+      Worker3.watchForJobs('default', function multiplierIdentifier(payload, cb) {
         cb(null, {result: payload.input * 2, workerId: 3 });
       });
-      Worker4.watchForJobs(function multiplierIdentifier(payload, cb) {
+      Worker4.watchForJobs('default', function multiplierIdentifier(payload, cb) {
         cb(null, {result: payload.input * 2, workerId: 4 });
       });
 
       _.each(numbersToProcess, function(num) {
         (function(num) {
-          Consumer.createJob({ input: num })
+          Consumer.createJob('default', { input: num })
           .then(function(results) {
             representedServers.push(results.workerId);
             expect(results.result).to.equal(num * 2);
@@ -118,6 +118,56 @@ describe('Comrade job processor', function() {
           });
         })(num);
       });
+    });
+
+    var Worker1 = new comrade.Worker('postgres://localhost/postgres', allConnected, 1);
+    var Worker2 = new comrade.Worker('postgres://localhost/postgres', allConnected, 2);
+    var Worker3 = new comrade.Worker('postgres://localhost/postgres', allConnected, 3);
+    var Worker4 = new comrade.Worker('postgres://localhost/postgres', allConnected, 4);
+  });
+
+  it('Work done by different instances on different queues', function(done) {
+
+    var allConnected = _.after(4, function() {
+
+      var iAmDone = _.after(4, function() {
+        done();
+      });
+
+      Worker1.watchForJobs('adder', function adder(payload, cb) {
+        cb(null, { result: payload.val1 + payload.val2 });
+      });
+      Worker2.watchForJobs('subtractor', function subtractor(payload, cb) {
+        cb(null, { result: payload.val1 - payload.val2 });
+      });
+      Worker3.watchForJobs('multiplier', function multiplier(payload, cb) {
+        cb(null, { result: payload.val1 * payload.val2 });
+      });
+      Worker4.watchForJobs('divider', function divider(payload, cb) {
+        cb(null, { result: payload.val1 / payload.val2 });
+      });
+
+      Consumer.createJob('adder', { val1: 10, val2: 5 })
+      .then(function(results) {
+        expect(results.result).to.equal(15);
+        iAmDone();
+      });
+      Consumer.createJob('subtractor', { val1: 10, val2: 5 })
+      .then(function(results) {
+        expect(results.result).to.equal(5);
+        iAmDone();
+      });
+      Consumer.createJob('multiplier', { val1: 10, val2: 5 })
+      .then(function(results) {
+        expect(results.result).to.equal(50);
+        iAmDone();
+      });
+      Consumer.createJob('divider', { val1: 10, val2: 5 })
+      .then(function(results) {
+        expect(results.result).to.equal(2);
+        iAmDone();
+      });
+
     });
 
     var Worker1 = new comrade.Worker('postgres://localhost/postgres', allConnected, 1);
