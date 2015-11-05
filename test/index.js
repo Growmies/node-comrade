@@ -88,7 +88,9 @@ describe('Comrade job processor', function() {
 
     var allConnected = _.after(4, function() {
       var representedServers = [];
-      var iAmDone = _.after(6, function() {
+      var numbersToProcess = _.range(1, 1000);
+
+      var iAmDone = _.after(numbersToProcess.length, function() {
         expect(_.unique(representedServers)).to.have.length.above(1);
         done();
       });
@@ -106,47 +108,15 @@ describe('Comrade job processor', function() {
         cb(null, {result: payload.input * 2, workerId: 4 });
       });
 
-      // Create bunch of jobs now
-      Consumer.createJob({ input: 0 })
-      .then(function(results) {
-        representedServers.push(results.workerId);
-        expect(results.result).to.equal(0);
-        iAmDone();
-      });
-
-      Consumer.createJob({ input: 1 })
-      .then(function(results) {
-        representedServers.push(results.workerId);
-        expect(results.result).to.equal(2);
-        iAmDone();
-      });
-
-      Consumer.createJob({ input: 2 })
-      .then(function(results) {
-        representedServers.push(results.workerId);
-        expect(results.result).to.equal(4);
-        iAmDone();
-      });
-
-      Consumer.createJob({ input: 3 })
-      .then(function(results) {
-        representedServers.push(results.workerId);
-        expect(results.result).to.equal(6);
-        iAmDone();
-      });
-
-      Consumer.createJob({ input: 4 })
-      .then(function(results) {
-        representedServers.push(results.workerId);
-        expect(results.result).to.equal(8);
-        iAmDone();
-      });
-
-      Consumer.createJob({ input: 5 })
-      .then(function(results) {
-        representedServers.push(results.workerId);
-        expect(results.result).to.equal(10);
-        iAmDone();
+      _.each(numbersToProcess, function(num) {
+        (function(num) {
+          Consumer.createJob({ input: num })
+          .then(function(results) {
+            representedServers.push(results.workerId);
+            expect(results.result).to.equal(num * 2);
+            iAmDone();
+          });
+        })(num);
       });
     });
 

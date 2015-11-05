@@ -1,33 +1,5 @@
 exports.findNextJob = (
   'SELECT * FROM jobs WHERE status = \'pending\' LIMIT 1 FOR UPDATE'
-  // 'WITH RECURSIVE "candidateJob" AS ( ' +
-  // 'SELECT (j).*, pg_try_advisory_lock((j).id) AS locked ' +
-  // 'FROM ( ' +
-  //   'SELECT j ' +
-  //   'FROM "jobs" AS j ' +
-  //   'ORDER BY id ' +
-  //   'LIMIT 1 ' +
-  // ') AS t1 ' +
-  // 'UNION ALL ( ' +
-  //   'SELECT (j).*, pg_try_advisory_lock((j).id) AS locked ' +
-  //   'FROM ( ' +
-  //     'SELECT ( ' +
-  //       'SELECT j ' +
-  //       'FROM "jobs" AS j ' +
-  //       'ORDER BY id ' +
-  //       'LIMIT 1 ' +
-  //     ') AS j ' +
-  //     'FROM "candidateJob" ' +
-  //     'WHERE "candidateJob".id IS NOT NULL ' +
-  //     'LIMIT 1 ' +
-  //   ') AS t1 ' +
-  // ') ' +
-  // ') ' +
-  // 'SELECT id ' +
-  // 'FROM "candidateJob" ' +
-  // 'WHERE locked ' +
-  // 'LIMIT 1 ' +
-  // 'FOR UPDATE'
 );
 
 exports.commit = (
