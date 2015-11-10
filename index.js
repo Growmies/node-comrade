@@ -3,7 +3,7 @@ var _       = require('lodash');
 var Promise = require('bluebird');
 var sql     = require('./sql');
 
-function Consumer(connectionOptions, cb, id) {
+function Producer(connectionOptions, cb, id) {
   var self          = this;
   self.id           = id;
   cb                = cb || _.noop;
@@ -54,7 +54,7 @@ function Consumer(connectionOptions, cb, id) {
   };
 }
 
-function Worker(connectionOptions, cb, id) {
+function Consumer(connectionOptions, cb, id) {
   var self          = this;
   self.id           = id;
   self.backLog      = [];
@@ -161,6 +161,6 @@ function Worker(connectionOptions, cb, id) {
 }
 
 module.exports = {
-  Worker: Worker,
-  Consumer: Consumer
+  Consumer: Consumer,
+  Producer: Producer
 }
