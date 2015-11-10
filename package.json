@@ -1,6 +1,6 @@
 {
-  "name": "node-comrade",
-  "version": "1.0.0",
+  "name": "postgres-queue",
+  "version": "0.0.1",
   "description": "A PostGres backed request-response queue for node.",
   "main": "index.js",
   "directories": {
@@ -20,12 +20,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Growmies/node-comrade.git"
+    "url": "https://github.com/Growmies/postgres-queue.git"
   },
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/Growmies/node-comrade/issues"
+    "url": "https://github.com/Growmies/postgres-queue/issues"
   },
-  "homepage": "https://github.com/Growmies/node-comrade"
+  "homepage": "https://github.com/Growmies/postgres-queue"
 }
