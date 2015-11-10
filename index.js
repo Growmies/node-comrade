@@ -30,18 +30,26 @@ function Consumer(connectionOptions, cb, id) {
   };
 
   this.listen = function() {
+    var self = this;
     this.client.query('LISTEN "jobComplete"');
     this.client.on('notification', function(notification) {
       var parts   = notification.payload.split('::');
       var jobId   = parseInt(parts[0]);
       var status  = parts[1];
-      var result  = JSON.parse(parts[2]);
 
+      // Normally, we would return the result in the notification, but sometimes it is just too big and postgres fails.
+      // Not as awesome, but it is reliable
       if (!self.jobPromises[jobId]) return;
-
-      var method = status === 'done' ? self.jobPromises[jobId].resolve : self.jobPromises[jobId].reject;
-      method(result);
-      delete self.jobPromises[jobId];
+      self.client.query(sql.getResults, [jobId], function(err, results) {
+        if (err) return self.jobPromises[jobId].reject({ error: err.message });
+        var result = results.rows[0].result;
+        if (status === 'done') {
+          self.jobPromises[jobId].resolve(result);
+        } else {
+          self.jobPromises[jobId].reject(result);
+        }
+        delete self.jobPromises[jobId];
+      });
     });
   };
 }
@@ -128,6 +136,7 @@ function Worker(connectionOptions, cb, id) {
     var self = this;
     self.client.query(sql.markJobAsDone, [jobId, result], function(err) {
       if (err) {
+        console.log(err.stack);
         console.log('Could not mark done');
       }
     });
