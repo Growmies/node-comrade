@@ -72,7 +72,6 @@ function Worker(connectionOptions, cb, id) {
 
   this.watchForJobs = function(queue, workerFunction) {
     var self            = this;
-
     this.queue          = queue;
     this.workerFunction = workerFunction;
 
@@ -120,11 +119,11 @@ function Worker(connectionOptions, cb, id) {
           self.markJobAsDone(job.jobId, result);
         });
       }
-      self.checkQueueForJobs();
+      self.checkBacklogForJobs();
     });
   },
 
-  this.checkQueueForJobs = function() {
+  this.checkBacklogForJobs = function() {
     self.locked = false;
     var job = self.backLog.pop();
     if (job) {
@@ -136,8 +135,7 @@ function Worker(connectionOptions, cb, id) {
     var self = this;
     self.client.query(sql.markJobAsDone, [jobId, result], function(err) {
       if (err) {
-        console.log(err.stack);
-        console.log('Could not mark done');
+        console.error('Could not mark done', err.stack);
       }
     });
   };
@@ -152,16 +150,10 @@ function Worker(connectionOptions, cb, id) {
 
   this.lockJob = function(jobId, cb) {
     self.client.query(sql.lockJob, [jobId], function(err, results) {
-      if (err) return self.rollback(cb.bind(err));
+      if (err) return cb(err);
       cb(err, results.rowCount);
     });
   };
-
-  this.rollback = function(cb) {
-    this.client.query(sql.rollback, function() {
-      cb();
-    });
-  }
 
   this.deleteAllJobs = function(cb) {
     this.client.query(sql.deleteAllJobs, cb)
