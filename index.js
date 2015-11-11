@@ -114,9 +114,9 @@ function Consumer(connectionOptions, cb, id) {
     self.lockJob(job.jobId, function(err, gotLock) {
       if (err) return self.markJobAsDoneWithError(job.jobId, err);
       if (gotLock) {
-        self.workerFunction(job.payload, function(err, result) {
+        self.workerFunction(job.payload, function(err, result, meta) {
           if (err) return self.markJobAsDoneWithError(job.jobId, err);
-          self.markJobAsDone(job.jobId, result);
+          self.markJobAsDone(job.jobId, result, meta);
         });
       }
       self.checkBacklogForJobs();
@@ -131,9 +131,9 @@ function Consumer(connectionOptions, cb, id) {
     }
   },
 
-  this.markJobAsDone = function(jobId, result) {
+  this.markJobAsDone = function(jobId, result, meta) {
     var self = this;
-    self.client.query(sql.markJobAsDone, [jobId, result], function(err) {
+    self.client.query(sql.markJobAsDone, [jobId, result, meta], function(err) {
       if (err) {
         console.error('Could not mark done', err.stack);
       }

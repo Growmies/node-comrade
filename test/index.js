@@ -36,7 +36,6 @@ describe('Comrade job processor', function() {
       expect(results.result).to.equal(8);
       done();
     });
-
   });
 
   it('Should pick up multiple jobs', function(done) {
@@ -135,16 +134,16 @@ describe('Comrade job processor', function() {
       });
 
       Consumer1.watchForJobs('adder', function adder(payload, cb) {
-        cb(null, { result: payload.val1 + payload.val2 });
+        cb(null, { result: payload.val1 + payload.val2 }, { workerId: 'consumer1'});
       });
       Consumer2.watchForJobs('subtractor', function subtractor(payload, cb) {
-        cb(null, { result: payload.val1 - payload.val2 });
+        cb(null, { result: payload.val1 - payload.val2 }, { workerId: 'consumer2'});
       });
       Consumer3.watchForJobs('multiplier', function multiplier(payload, cb) {
-        cb(null, { result: payload.val1 * payload.val2 });
+        cb(null, { result: payload.val1 * payload.val2 }, { workerId: 'consumer3'});
       });
       Consumer4.watchForJobs('divider', function divider(payload, cb) {
-        cb(null, { result: payload.val1 / payload.val2 });
+        cb(null, { result: payload.val1 / payload.val2 }, { workerId: 'consumer4'});
       });
 
       Producer.createJob('adder', { val1: 10, val2: 5 })
