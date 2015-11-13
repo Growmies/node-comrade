@@ -84,7 +84,7 @@ describe('Comrade job processor', function() {
   });
 
   it('Work should be somwhat distributed amongst various workers', function(done) {
-
+    this.timeout(5000);
     var allConnected = _.after(4, function() {
       var representedServers = [];
       var numbersToProcess = _.range(1, 1000);

@@ -2,6 +2,7 @@ module.exports = {
   findNextJob:            'SELECT * FROM jobs WHERE (queue, status) = ($1, \'pending\') LIMIT 1 FOR UPDATE',
   getPendingJobs:         'SELECT id as "jobId", payload FROM jobs WHERE (queue, status) = ($1, \'pending\')',
   getResults:             'SELECT result FROM jobs WHERE id = $1',
+  getPayload:             'SELECT payload FROM jobs WHERE id = $1',
   lockJob:                'UPDATE jobs SET (status, "processingStartTime") = (\'processing\', NOW()) WHERE id = $1 AND status = \'pending\'',
   createJob:              'INSERT INTO jobs (queue, payload, status, "insertionTime", result) VALUES ($1, $2, \'pending\', NOW(), \'{}\') RETURNING id',
   markJobAsDone:          'UPDATE jobs SET (status, result, meta, "processingEndTime") = (\'done\', $2, $3, NOW()) WHERE id = $1',

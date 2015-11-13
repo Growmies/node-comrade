@@ -80,16 +80,21 @@ function Consumer(connectionOptions, cb, id) {
       var parts   = notification.payload.split('::');
       var jobId   = parseInt(parts[0]);
       var queue   = parts[1];
-      var payload = JSON.parse(parts[2]);
 
       if (queue !== self.queue) { // This is not the job we are looking for
         return;
       }
 
-      self.attemptToProcess({
-        jobId: jobId,
-        payload: payload
+      self.client.query(sql.getPayload, [jobId], function(err, results) {
+        if (err) return;
+        var payload = results.rows[0].payload;
+
+        self.attemptToProcess({
+          jobId: jobId,
+          payload: payload
+        });
       });
+
     });
 
     this.checkDbForPendingJobs();
