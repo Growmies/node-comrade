@@ -70,10 +70,11 @@ function Consumer(connectionOptions, cb, id) {
     this.client.end();
   },
 
-  this.watchForJobs = function(queue, workerFunction) {
+  this.watchForJobs = function(queue, workerFunction, workerMeta) {
     var self            = this;
     this.queue          = queue;
     this.workerFunction = workerFunction;
+    this.workerMeta     = workerMeta || {};
 
     this.client.query('LISTEN "newJob"');
     this.client.on('notification', function(notification) {
@@ -116,12 +117,12 @@ function Consumer(connectionOptions, cb, id) {
     }
 
     self.locked = true;
-    self.lockJob(job.jobId, function(err, gotLock) {
+    self.lockJob(job.jobId, self.workerMeta, function(err, gotLock) {
       if (err) return self.markJobAsDoneWithError(job.jobId, err);
       if (gotLock) {
-        self.workerFunction(job.payload, function(err, result, meta) {
+        self.workerFunction(job.payload, function(err, result, resultsMeta) {
           if (err) return self.markJobAsDoneWithError(job.jobId, err);
-          self.markJobAsDone(job.jobId, result, meta);
+          self.markJobAsDone(job.jobId, result, resultsMeta);
         });
       }
       self.checkBacklogForJobs();
@@ -136,9 +137,9 @@ function Consumer(connectionOptions, cb, id) {
     }
   },
 
-  this.markJobAsDone = function(jobId, result, meta) {
+  this.markJobAsDone = function(jobId, result, resultsMeta) {
     var self = this;
-    self.client.query(sql.markJobAsDone, [jobId, result, meta], function(err) {
+    self.client.query(sql.markJobAsDone, [jobId, result, resultsMeta], function(err) {
       if (err) {
         console.error('Could not mark done', err.stack);
       }
@@ -153,8 +154,8 @@ function Consumer(connectionOptions, cb, id) {
     });
   };
 
-  this.lockJob = function(jobId, cb) {
-    self.client.query(sql.lockJob, [jobId], function(err, results) {
+  this.lockJob = function(jobId, workerMeta, cb) {
+    self.client.query(sql.lockJob, [jobId, workerMeta], function(err, results) {
       if (err) return cb(err);
       cb(err, results.rowCount);
     });
