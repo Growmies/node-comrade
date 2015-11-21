@@ -120,9 +120,9 @@ describe('Comrade job processor', function() {
     });
 
     var Consumer1 = new comrade.Consumer('postgres://localhost/postgres', allConnected, 1, 0, 4);
-    var Consumer2 = new comrade.Consumer('postgres://localhost/postgres', allConnected, 2, 0, 4);
-    var Consumer3 = new comrade.Consumer('postgres://localhost/postgres', allConnected, 3, 0, 4);
-    var Consumer4 = new comrade.Consumer('postgres://localhost/postgres', allConnected, 4, 0, 4);
+    var Consumer2 = new comrade.Consumer('postgres://localhost/postgres', allConnected, 2, 1, 4);
+    var Consumer3 = new comrade.Consumer('postgres://localhost/postgres', allConnected, 3, 2, 4);
+    var Consumer4 = new comrade.Consumer('postgres://localhost/postgres', allConnected, 4, 3, 4);
   });
 
   it('Work done by different instances on different queues', function(done) {
