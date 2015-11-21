@@ -26,7 +26,7 @@ function Producer(connectionOptions, cb, id) {
         if (err) return reject(err);
         self.jobPromises[results.rows[0].id] = { resolve: resolve, reject: reject };
       });
-    })
+    });
   };
 
   this.listen = function() {
@@ -54,11 +54,13 @@ function Producer(connectionOptions, cb, id) {
   };
 }
 
-function Consumer(connectionOptions, cb, id) {
-  var self          = this;
-  self.id           = id;
-  self.backLog      = [];
-  cb                = cb || _.noop;
+function Consumer(connectionOptions, cb, id, cyclicOffset, totalConsumers) {
+  var self            = this;
+  self.id             = id || 0;
+  self.cyclicOffset   = cyclicOffset || 0;
+  self.totalConsumers = totalConsumers || 0;
+  self.backLog        = [];
+  cb                  = cb || _.noop;
 
   pg.connect(connectionOptions, function(err, client) {
     if (err) return cb(err);
@@ -68,7 +70,7 @@ function Consumer(connectionOptions, cb, id) {
 
   this.destroy = function() {
     this.client.end();
-  },
+  };
 
   this.watchForJobs = function(queue, workerFunction, workerMeta) {
     var self            = this;
@@ -78,24 +80,25 @@ function Consumer(connectionOptions, cb, id) {
 
     this.client.query('LISTEN "newJob"');
     this.client.on('notification', function(notification) {
-      var parts   = notification.payload.split('::');
-      var jobId   = parseInt(parts[0]);
-      var queue   = parts[1];
+      setTimeout(function() {
+        var parts   = notification.payload.split('::');
+        var jobId   = parseInt(parts[0]);
+        var queue   = parts[1];
 
-      if (queue !== self.queue) { // This is not the job we are looking for
-        return;
-      }
+        if (queue !== self.queue) { // This is not the job we are looking for
+          return;
+        }
 
-      self.client.query(sql.getPayload, [jobId], function(err, results) {
-        if (err) return;
-        var payload = results.rows[0].payload;
+        self.client.query(sql.getPayload, [jobId], function(err, results) {
+          if (err) return;
+          var payload = results.rows[0].payload;
 
-        self.attemptToProcess({
-          jobId: jobId,
-          payload: payload
+          self.attemptToProcess({
+            jobId: jobId,
+            payload: payload
+          });
         });
-      });
-
+      }, ++self.cyclicOffset % self.totalConsumers); // This makes each worker delay trying to get the job in a cyclic amount. 0, 1, 2, 3, 0, 1, 2, 3 - in an attempt at making the load more even.
     });
 
     this.checkDbForPendingJobs();
@@ -127,7 +130,7 @@ function Consumer(connectionOptions, cb, id) {
       }
       self.checkBacklogForJobs();
     });
-  },
+  };
 
   this.checkBacklogForJobs = function() {
     self.locked = false;
@@ -135,7 +138,7 @@ function Consumer(connectionOptions, cb, id) {
     if (job) {
       self.attemptToProcess(job);
     }
-  },
+  };
 
   this.markJobAsDone = function(jobId, result, resultsMeta) {
     var self = this;
@@ -162,11 +165,11 @@ function Consumer(connectionOptions, cb, id) {
   };
 
   this.deleteAllJobs = function(cb) {
-    this.client.query(sql.deleteAllJobs, cb)
-  }
+    this.client.query(sql.deleteAllJobs, cb);
+  };
 }
 
 module.exports = {
   Consumer: Consumer,
   Producer: Producer
-}
+};

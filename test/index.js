@@ -9,7 +9,7 @@ beforeEach(function(done) {
 
   Consumer = new comrade.Consumer('postgres://localhost/postgres', function(err, client) {
     Consumer.deleteAllJobs(function(err, results) {
-      iAmDone()
+      iAmDone();
     });
   }, 0);
 
@@ -75,7 +75,7 @@ describe('Comrade job processor', function() {
 
     Producer.createJob('default', { timeout: 0 })
     .then(function(results) {
-      done('This should have thrown an error.')
+      done('This should have thrown an error.');
     })
     .catch(function(err) {
       expect(err).to.not.be.a('null');
@@ -119,10 +119,10 @@ describe('Comrade job processor', function() {
       });
     });
 
-    var Consumer1 = new comrade.Consumer('postgres://localhost/postgres', allConnected, 1);
-    var Consumer2 = new comrade.Consumer('postgres://localhost/postgres', allConnected, 2);
-    var Consumer3 = new comrade.Consumer('postgres://localhost/postgres', allConnected, 3);
-    var Consumer4 = new comrade.Consumer('postgres://localhost/postgres', allConnected, 4);
+    var Consumer1 = new comrade.Consumer('postgres://localhost/postgres', allConnected, 1, 0, 4);
+    var Consumer2 = new comrade.Consumer('postgres://localhost/postgres', allConnected, 2, 0, 4);
+    var Consumer3 = new comrade.Consumer('postgres://localhost/postgres', allConnected, 3, 0, 4);
+    var Consumer4 = new comrade.Consumer('postgres://localhost/postgres', allConnected, 4, 0, 4);
   });
 
   it('Work done by different instances on different queues', function(done) {
