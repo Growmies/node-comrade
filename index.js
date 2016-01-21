@@ -20,9 +20,9 @@ function Producer(connectionOptions, cb, id) {
     this.client.end();
   };
 
-  this.createJob = function(queue, job) {
+  this.createJob = function(queueName, job) {
     return new Promise(function(resolve, reject) {
-      self.client.query(sql.createJob, [queue, job], function(err, results) {
+      self.client.query(sql.createJob, [queueName, job], function(err, results) {
         if (err) return reject(err);
         self.jobPromises[results.rows[0].id] = { resolve: resolve, reject: reject };
       });
@@ -72,20 +72,21 @@ function Consumer(connectionOptions, cb, id, cyclicOffset, totalConsumers) {
     this.client.end();
   };
 
-  this.watchForJobs = function(queue, workerFunction, workerMeta) {
+  this.watchForJobs = function(queueName, workerFunction, workerMeta) {
     var self            = this;
-    this.queue          = queue;
+    this.queueName      = queueName;
     this.workerFunction = workerFunction;
     this.workerMeta     = workerMeta || {};
 
     this.client.query('LISTEN "newJob"');
     this.client.on('notification', function(notification) {
       setTimeout(function() {
+        console.log('++self.cyclicOffset % self.totalConsumers', ++self.cyclicOffset % self.totalConsumers);
         var parts   = notification.payload.split('::');
         var jobId   = parseInt(parts[0]);
-        var queue   = parts[1];
+        var queueName   = parts[1];
 
-        if (queue !== self.queue) { // This is not the job we are looking for
+        if (queueName !== self.queueName) { // This is not the job we are looking for
           return;
         }
 
@@ -106,7 +107,7 @@ function Consumer(connectionOptions, cb, id, cyclicOffset, totalConsumers) {
 
   this.checkDbForPendingJobs = function() {
     var self = this;
-    this.client.query(sql.getPendingJobs, [this.queue], function(err, results) {
+    this.client.query(sql.getPendingJobs, [this.queueName], function(err, results) {
       _.each(results.rows, function(pendingJob) {
         self.attemptToProcess(pendingJob);
       });
