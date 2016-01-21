@@ -1,6 +1,6 @@
 {
   "name": "postgres-queue",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "description": "A PostGres backed request-response queue for node.",
   "main": "index.js",
   "directories": {
@@ -9,7 +9,7 @@
   "dependencies": {
     "bluebird": "^3.0.2",
     "chai": "^3.4.0",
-    "lodash": "^3.10.1",
+    "lodash": "^4.0.0",
     "pg": "^4.4.3"
   },
   "devDependencies": {

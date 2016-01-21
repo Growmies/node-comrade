@@ -38,7 +38,6 @@ function Producer(connectionOptions, cb, id) {
       var status  = parts[1];
 
       // Normally, we would return the result in the notification, but sometimes it is just too big and postgres fails.
-      // Not as awesome, but it is reliable
       if (!self.jobPromises[jobId]) return;
       self.client.query(sql.getResults, [jobId], function(err, results) {
         if (err) return self.jobPromises[jobId].reject({ error: err.message });
@@ -54,13 +53,15 @@ function Producer(connectionOptions, cb, id) {
   };
 }
 
-function Consumer(connectionOptions, cb, id, cyclicOffset, totalConsumers) {
-  var self            = this;
-  self.id             = id || 0;
-  self.cyclicOffset   = cyclicOffset || 0;
-  self.totalConsumers = totalConsumers || 0;
-  self.backLog        = [];
-  cb                  = cb || _.noop;
+function Consumer(connectionOptions, cb, options) {
+  var self               = this;
+
+  cb                     = cb                        || _.noop;
+  self.id                = options.id                || 0;
+  self.maxConcurrentJobs = options.maxConcurrentJobs || 10;
+
+  self.currentJobs       = 0;
+  self.backLog           = [];
 
   pg.connect(connectionOptions, function(err, client) {
     if (err) return cb(err);
@@ -79,27 +80,25 @@ function Consumer(connectionOptions, cb, id, cyclicOffset, totalConsumers) {
     this.workerMeta     = workerMeta || {};
 
     this.client.query('LISTEN "newJob"');
+
     this.client.on('notification', function(notification) {
-      setTimeout(function() {
-        console.log('++self.cyclicOffset % self.totalConsumers', ++self.cyclicOffset % self.totalConsumers);
-        var parts   = notification.payload.split('::');
-        var jobId   = parseInt(parts[0]);
-        var queueName   = parts[1];
+      var parts     = notification.payload.split('::');
+      var jobId     = parseInt(parts[0]);
+      var queueName = parts[1];
 
-        if (queueName !== self.queueName) { // This is not the job we are looking for
-          return;
-        }
+      if (queueName !== self.queueName) {
+        return;
+      }
 
-        self.client.query(sql.getPayload, [jobId], function(err, results) {
-          if (err) return;
-          var payload = results.rows[0].payload;
+      self.client.query(sql.getPayload, [jobId], function(err, results) {
+        if (err) return;
+        var payload = results.rows[0].payload;
 
-          self.attemptToProcess({
-            jobId: jobId,
-            payload: payload
-          });
+        self.attemptToProcess({
+          jobId: jobId,
+          payload: payload
         });
-      }, ++self.cyclicOffset % self.totalConsumers); // This makes each worker delay trying to get the job in a cyclic amount. 0, 1, 2, 3, 0, 1, 2, 3 - in an attempt at making the load more even.
+      });
     });
 
     this.checkDbForPendingJobs();
@@ -115,7 +114,7 @@ function Consumer(connectionOptions, cb, id, cyclicOffset, totalConsumers) {
   };
 
   this.attemptToProcess = function(job) {
-    if (self.locked) {
+    if (self.locked || self.currentJobs >= self.maxConcurrentJobs) {
       self.backLog.push(job);
       return;
     }
@@ -124,9 +123,15 @@ function Consumer(connectionOptions, cb, id, cyclicOffset, totalConsumers) {
     self.lockJob(job.jobId, self.workerMeta, function(err, gotLock) {
       if (err) return self.markJobAsDoneWithError(job.jobId, err);
       if (gotLock) {
+        self.currentJobs++;
         self.workerFunction(job.payload, function(err, result, resultsMeta) {
-          if (err) return self.markJobAsDoneWithError(job.jobId, err);
-          self.markJobAsDone(job.jobId, result, resultsMeta);
+          self.currentJobs--;
+          if (err) {
+            self.markJobAsDoneWithError(job.jobId, err);
+          } else {
+            self.markJobAsDone(job.jobId, result, resultsMeta);
+          }
+          self.checkBacklogForJobs();
         });
       }
       self.checkBacklogForJobs();
@@ -137,8 +142,17 @@ function Consumer(connectionOptions, cb, id, cyclicOffset, totalConsumers) {
     self.locked = false;
     var job = self.backLog.pop();
     if (job) {
-      self.attemptToProcess(job);
+      _.defer(function() {
+        self.attemptToProcess(job);
+      });
     }
+  };
+
+  this.lockJob = function(jobId, workerMeta, cb) {
+    self.client.query(sql.lockJob, [jobId, workerMeta], function(err, results) {
+      if (err) return cb(err);
+      cb(err, results.rowCount);
+    });
   };
 
   this.markJobAsDone = function(jobId, result, resultsMeta) {
@@ -155,13 +169,6 @@ function Consumer(connectionOptions, cb, id, cyclicOffset, totalConsumers) {
       if (err) {
         console.error('Could not mark done with an error');
       }
-    });
-  };
-
-  this.lockJob = function(jobId, workerMeta, cb) {
-    self.client.query(sql.lockJob, [jobId, workerMeta], function(err, results) {
-      if (err) return cb(err);
-      cb(err, results.rowCount);
     });
   };
 

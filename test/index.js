@@ -87,42 +87,52 @@ describe('Comrade job processor', function() {
     this.timeout(5000);
     var allConnected = _.after(4, function() {
       var representedServers = [];
-      var numbersToProcess = _.range(1, 1000);
+      var numbersToProcess = _.range(1, 100);
 
       var iAmDone = _.after(numbersToProcess.length, function() {
-        expect(_.unique(representedServers)).to.have.length.above(1);
+        expect(_.uniq(representedServers)).to.have.length.above(1);
         done();
       });
 
       Consumer1.watchForJobs('default', function multiplierIdentifier(payload, cb) {
-        cb(null, {result: payload.input * 2, workerId: 1 });
+        setTimeout(function() {
+          cb(null, {result: payload.input * 2, workerId: 1 });
+        }, payload.input);
       });
       Consumer2.watchForJobs('default', function multiplierIdentifier(payload, cb) {
-        cb(null, {result: payload.input * 2, workerId: 2 });
+        setTimeout(function() {
+          cb(null, {result: payload.input * 2, workerId: 2 });
+        }, payload.input);
       });
       Consumer3.watchForJobs('default', function multiplierIdentifier(payload, cb) {
-        cb(null, {result: payload.input * 2, workerId: 3 });
+        setTimeout(function() {
+          cb(null, {result: payload.input * 2, workerId: 3 });
+        }, payload.input);
       });
       Consumer4.watchForJobs('default', function multiplierIdentifier(payload, cb) {
-        cb(null, {result: payload.input * 2, workerId: 4 });
+        setTimeout(function() {
+          cb(null, {result: payload.input * 2, workerId: 4 });
+        }, payload.input);
       });
 
       _.each(numbersToProcess, function(num) {
         (function(num) {
-          Producer.createJob('default', { input: num })
-          .then(function(results) {
-            representedServers.push(results.workerId);
-            expect(results.result).to.equal(num * 2);
-            iAmDone();
-          });
+          setTimeout(function() {
+            Producer.createJob('default', { input: num })
+            .then(function(results) {
+              representedServers.push(results.workerId);
+              expect(results.result).to.equal(num * 2);
+              iAmDone();
+            });
+          }, num);
         })(num);
       });
     });
 
-    var Consumer1 = new comrade.Consumer('postgres://localhost/postgres', allConnected, 1, 0, 4);
-    var Consumer2 = new comrade.Consumer('postgres://localhost/postgres', allConnected, 2, 1, 4);
-    var Consumer3 = new comrade.Consumer('postgres://localhost/postgres', allConnected, 3, 2, 4);
-    var Consumer4 = new comrade.Consumer('postgres://localhost/postgres', allConnected, 4, 3, 4);
+    var Consumer1 = new comrade.Consumer('postgres://localhost/postgres', allConnected, { id: 1, maxConcurrentJobs: 20 });
+    var Consumer2 = new comrade.Consumer('postgres://localhost/postgres', allConnected, { id: 2, maxConcurrentJobs: 20 });
+    var Consumer3 = new comrade.Consumer('postgres://localhost/postgres', allConnected, { id: 3, maxConcurrentJobs: 20 });
+    var Consumer4 = new comrade.Consumer('postgres://localhost/postgres', allConnected, { id: 4, maxConcurrentJobs: 20 });
   });
 
   it('Work done by different instances on different queues', function(done) {
