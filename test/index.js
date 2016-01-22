@@ -1,6 +1,7 @@
 var expect  = require('chai').expect;
-var comrade = require('../');
+var pg      = require('pg');
 var _       = require('lodash');
+var comrade = require('../');
 var Consumer;
 var Producer;
 
@@ -91,6 +92,10 @@ describe('Comrade job processor', function() {
 
       var iAmDone = _.after(numbersToProcess.length, function() {
         expect(_.uniq(representedServers)).to.have.length.above(1);
+        Consumer1.destroy();
+        Consumer2.destroy();
+        Consumer3.destroy();
+        Consumer4.destroy();
         done();
       });
 
@@ -135,10 +140,47 @@ describe('Comrade job processor', function() {
     var Consumer4 = new comrade.Consumer('postgres://localhost/postgres', allConnected, { id: 4, maxConcurrentJobs: 20 });
   });
 
+  it('Should be able to attach to an existing job\'s promise', function(done) {
+    pg.connect('postgres://localhost/postgres', function(err, client) {
+      if (err) return cb(err);
+
+      var run = function() {
+        Consumer.watchForJobs('existingJobTest', function workerErrorFunc(payload, cb) {
+          setTimeout(function() {
+            cb(null, payload.input * 2);
+          }, 500);
+        });
+
+        var allComplete = _.after(2, function() {
+          Producer.destroy();
+          Consumer.destroy();
+          done();
+        });
+
+        Producer.createJob('existingJobTest', { input: 5 })
+        .then(function(result) {
+          expect(result).to.equal(10);
+          allComplete();
+        });
+
+        setTimeout(function() {
+          client.query('SELECT id FROM jobs ORDER BY id LIMIT 1', null, function(err, results) {
+            Producer.getJobPromiseById(results.rows[0].id)
+            .then(function(results) {
+              expect(results).to.equal(10);
+              allComplete();
+            });
+          });
+        }, 50);
+      }
+
+      var Consumer = new comrade.Consumer('postgres://localhost/postgres', run, { id: 1, maxConcurrentJobs: 20 });
+    });
+  });
+
   it('Work done by different instances on different queues', function(done) {
-
+    this.timeout(5000);
     var allConnected = _.after(4, function() {
-
       var iAmDone = _.after(4, function() {
         done();
       });

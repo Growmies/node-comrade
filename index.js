@@ -23,11 +23,23 @@ function Producer(connectionOptions, cb, id) {
   this.createJob = function(queueName, job) {
     return new Promise(function(resolve, reject) {
       self.client.query(sql.createJob, [queueName, job], function(err, results) {
-        if (err) return reject(err);
-        self.jobPromises[results.rows[0].id] = { resolve: resolve, reject: reject };
+        if (err) {
+          return reject(err);
+        }
+        var jobId = results.rows[0].id;
+        self.jobPromises[jobId] = {};
+        self.jobPromises[jobId].promise = new Promise(function(jobPromiseResolve, jobPromiseReject) {
+                                                          self.jobPromises[jobId].resolve = jobPromiseResolve;
+                                                          self.jobPromises[jobId].reject  = jobPromiseReject;
+                                                       });
+        return resolve(self.jobPromises[jobId].promise);
       });
     });
   };
+
+  this.getJobPromiseById = function(jobId) {
+    return _.get(self.jobPromises[jobId], 'promise');
+  }
 
   this.listen = function() {
     var self = this;
