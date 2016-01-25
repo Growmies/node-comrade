@@ -182,6 +182,10 @@ describe('Comrade job processor', function() {
     this.timeout(5000);
     var allConnected = _.after(4, function() {
       var iAmDone = _.after(4, function() {
+        Consumer1.destroy();
+        Consumer2.destroy();
+        Consumer3.destroy();
+        Consumer4.destroy();
         done();
       });
 
@@ -225,6 +229,31 @@ describe('Comrade job processor', function() {
     var Consumer2 = new comrade.Consumer('postgres://localhost/postgres', allConnected, 2);
     var Consumer3 = new comrade.Consumer('postgres://localhost/postgres', allConnected, 3);
     var Consumer4 = new comrade.Consumer('postgres://localhost/postgres', allConnected, 4);
+  });
+
+  it('Should make sure that the max concurrent workers is respected', function(done) {
+      var run = function() {
+
+        Consumer.watchForJobs('testMaxConcurrentWorkers', function workerErrorFunc(payload, cb) {
+          setTimeout(function() {
+            cb(null, payload.input);
+          }, payload.input);
+        });
+
+        var allComplete = _.after(2, function() {
+          Producer.destroy();
+          Consumer.destroy();
+          done();
+        });
+
+        Producer.createJob('testMaxConcurrentWorkers', { input: 5 })
+        .then(function(result) {
+          expect(result).to.equal(10);
+          allComplete();
+        });
+      }
+
+      var Consumer = new comrade.Consumer('postgres://localhost/postgres', run, { id: 1, maxConcurrentJobs: 20 });
   });
 
 });
