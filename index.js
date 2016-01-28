@@ -102,15 +102,17 @@ function Consumer(connectionOptions, cb, options) {
         return;
       }
 
-      self.client.query(sql.getPayload, [jobId], function(err, results) {
-        if (err) return;
-        var payload = results.rows[0].payload;
+      setTimeout(function() {
+        self.client.query(sql.getPayload, [jobId], function(err, results) {
+          if (err) return;
+          var payload = results.rows[0].payload;
 
-        self.attemptToProcess({
-          jobId: jobId,
-          payload: payload
+          self.attemptToProcess({
+            jobId: jobId,
+            payload: payload
+          });
         });
-      });
+      }, _.random(1, 10)); // This helps with distributing the load between the workers. Not perfectly, but it helps.
     });
 
     this.checkDbForPendingJobs();
@@ -154,9 +156,7 @@ function Consumer(connectionOptions, cb, options) {
     self.locked = false;
     var job = self.backLog.pop();
     if (job) {
-      _.defer(function() {
-        self.attemptToProcess(job);
-      });
+      self.attemptToProcess(job);
     }
   };
 
