@@ -172,7 +172,7 @@ describe('Comrade job processor', function() {
             });
           });
         }, 50);
-      }
+      };
 
       var Consumer = new comrade.Consumer('postgres://localhost/postgres', run, { id: 1, maxConcurrentJobs: 20 });
     });

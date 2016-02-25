@@ -1,3 +1,4 @@
+
 var pg      = require('pg');
 var _       = require('lodash');
 var Promise = require('bluebird');
@@ -39,7 +40,7 @@ function Producer(connectionOptions, cb, id) {
 
   this.getJobPromiseById = function(jobId) {
     return _.get(self.jobPromises[jobId], 'promise');
-  }
+  };
 
   this.listen = function() {
     var self = this;
@@ -102,17 +103,7 @@ function Consumer(connectionOptions, cb, options) {
         return;
       }
 
-      setTimeout(function() {
-        self.client.query(sql.getPayload, [jobId], function(err, results) {
-          if (err) return;
-          var payload = results.rows[0].payload;
-
-          self.attemptToProcess({
-            jobId: jobId,
-            payload: payload
-          });
-        });
-      }, _.random(1, 10)); // This helps with distributing the load between the workers. Not perfectly, but it helps.
+      self.attemptToProcess(jobId);
     });
 
     this.checkDbForPendingJobs();
@@ -122,29 +113,28 @@ function Consumer(connectionOptions, cb, options) {
     var self = this;
     this.client.query(sql.getPendingJobs, [this.queueName], function(err, results) {
       _.each(results.rows, function(pendingJob) {
-        self.attemptToProcess(pendingJob);
+        self.attemptToProcess(pendingJob.id);
       });
     });
   };
 
-  this.attemptToProcess = function(job) {
+  this.attemptToProcess = function(jobId) {
     if (self.locked || self.currentJobs >= self.maxConcurrentJobs) {
-      self.backLog.push(job);
+      self.backLog.push(jobId);
       return;
     }
 
     self.locked = true;
-    self.lockJob(job.jobId, self.workerMeta, function(err, gotLock) {
-      if (err) return self.markJobAsDoneWithError(job.jobId, err);
-      if (gotLock) {
+    self.lockJob(jobId, self.workerMeta, function(err, job) {
+      if (err) {
+        self.checkBacklogForJobs();
+        return self.markJobAsDone(jobId, err);
+      }
+      if (job) {
         self.currentJobs++;
         self.workerFunction(job.payload, function(err, result, resultsMeta) {
           self.currentJobs--;
-          if (err) {
-            self.markJobAsDoneWithError(job.jobId, err);
-          } else {
-            self.markJobAsDone(job.jobId, result, resultsMeta);
-          }
+          self.markJobAsDone(jobId, err, result, resultsMeta);
           self.checkBacklogForJobs();
         });
       }
@@ -154,34 +144,36 @@ function Consumer(connectionOptions, cb, options) {
 
   this.checkBacklogForJobs = function() {
     self.locked = false;
-    var job = self.backLog.pop();
-    if (job) {
-      self.attemptToProcess(job);
+    var jobId = self.backLog.pop();
+    if (jobId) {
+      self.attemptToProcess(jobId);
     }
   };
 
   this.lockJob = function(jobId, workerMeta, cb) {
     self.client.query(sql.lockJob, [jobId, workerMeta], function(err, results) {
       if (err) return cb(err);
-      cb(err, results.rowCount);
+      if (results.rows.length) {
+        cb(null, results.rows[0]);
+      } else {
+        cb(null, null);
+      }
     });
   };
 
-  this.markJobAsDone = function(jobId, result, resultsMeta) {
+  this.markJobAsDone = function(jobId, err, result, resultsMeta) {
     var self = this;
-    self.client.query(sql.markJobAsDone, [jobId, result, resultsMeta], function(err) {
-      if (err) {
-        console.error('Could not mark done', err.stack);
-      }
-    });
-  };
-
-  this.markJobAsDoneWithError = function(jobId, err) {
-    this.client.query(sql.markJobAsDoneWithError, [jobId, { error: err.message || err }], function(err) {
-      if (err) {
-        console.error('Could not mark done with an error');
-      }
-    });
+    if (err) {
+      self.client.query(sql.markJobAsDoneWithError, [jobId, { error: err.message || err }], function(err) {
+        if (err) {
+        }
+      });
+    } else {
+      self.client.query(sql.markJobAsDone, [jobId, result, resultsMeta], function(err) {
+        if (err) {
+        }
+      });
+    }
   };
 
   this.deleteAllJobs = function(cb) {
