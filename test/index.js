@@ -102,22 +102,22 @@ describe('Comrade job processor', function() {
       Consumer1.watchForJobs('default', function multiplierIdentifier(payload, cb) {
         setTimeout(function() {
           cb(null, {result: payload.input * 2, workerId: 1 });
-        }, payload.input);
+        }, payload.input * 2);
       });
       Consumer2.watchForJobs('default', function multiplierIdentifier(payload, cb) {
         setTimeout(function() {
           cb(null, {result: payload.input * 2, workerId: 2 });
-        }, payload.input);
+        }, payload.input * 2);
       });
       Consumer3.watchForJobs('default', function multiplierIdentifier(payload, cb) {
         setTimeout(function() {
           cb(null, {result: payload.input * 2, workerId: 3 });
-        }, payload.input);
+        }, payload.input * 2);
       });
       Consumer4.watchForJobs('default', function multiplierIdentifier(payload, cb) {
         setTimeout(function() {
           cb(null, {result: payload.input * 2, workerId: 4 });
-        }, payload.input);
+        }, payload.input * 2);
       });
 
       _.each(numbersToProcess, function(num) {
@@ -134,10 +134,10 @@ describe('Comrade job processor', function() {
       });
     });
 
-    var Consumer1 = new comrade.Consumer('postgres://localhost/postgres', allConnected, { id: 1, maxConcurrentJobs: 20 });
-    var Consumer2 = new comrade.Consumer('postgres://localhost/postgres', allConnected, { id: 2, maxConcurrentJobs: 20 });
-    var Consumer3 = new comrade.Consumer('postgres://localhost/postgres', allConnected, { id: 3, maxConcurrentJobs: 20 });
-    var Consumer4 = new comrade.Consumer('postgres://localhost/postgres', allConnected, { id: 4, maxConcurrentJobs: 20 });
+    var Consumer1 = new comrade.Consumer('postgres://localhost/postgres', allConnected, { id: 1, maxConcurrentJobs: 1 });
+    var Consumer2 = new comrade.Consumer('postgres://localhost/postgres', allConnected, { id: 2, maxConcurrentJobs: 1 });
+    var Consumer3 = new comrade.Consumer('postgres://localhost/postgres', allConnected, { id: 3, maxConcurrentJobs: 1 });
+    var Consumer4 = new comrade.Consumer('postgres://localhost/postgres', allConnected, { id: 4, maxConcurrentJobs: 1 });
   });
 
   it('Should be able to attach to an existing job\'s promise', function(done) {

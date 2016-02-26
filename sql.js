@@ -8,5 +8,3 @@ module.exports = {
   deleteAllJobs:          'DELETE FROM "jobs"'
 };
 
-
-

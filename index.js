@@ -68,7 +68,6 @@ function Producer(connectionOptions, cb, id) {
 
 function Consumer(connectionOptions, cb, options) {
   var self               = this;
-
   cb                     = cb                        || _.noop;
   self.id                = options.id                || 0;
   self.maxConcurrentJobs = options.maxConcurrentJobs || 10;
@@ -113,18 +112,18 @@ function Consumer(connectionOptions, cb, options) {
     var self = this;
     this.client.query(sql.getPendingJobs, [this.queueName], function(err, results) {
       _.each(results.rows, function(pendingJob) {
-        self.attemptToProcess(pendingJob.id);
+        self.attemptToProcess(pendingJob.jobId);
       });
     });
   };
 
   this.attemptToProcess = function(jobId) {
-    if (self.locked || self.currentJobs >= self.maxConcurrentJobs) {
+    if (this.locked || self.currentJobs >= self.maxConcurrentJobs) {
       self.backLog.push(jobId);
       return;
     }
 
-    self.locked = true;
+    this.locked = true;
     self.lockJob(jobId, self.workerMeta, function(err, job) {
       if (err) {
         self.checkBacklogForJobs();
@@ -143,7 +142,7 @@ function Consumer(connectionOptions, cb, options) {
   };
 
   this.checkBacklogForJobs = function() {
-    self.locked = false;
+    this.locked = false;
     var jobId = self.backLog.pop();
     if (jobId) {
       self.attemptToProcess(jobId);
