@@ -131,11 +131,19 @@ function Consumer(connectionOptions, cb, options) {
       }
       if (job) {
         self.currentJobs++;
-        self.workerFunction(job.payload, function(err, result, resultsMeta) {
-          self.currentJobs--;
-          self.markJobAsDone(jobId, err, result, resultsMeta);
-          self.checkBacklogForJobs();
-        });
+        if (self.workerFunction.length === 3) {
+          self.workerFunction(jobId, job.payload, function(err, result, resultsMeta) {
+            self.currentJobs--;
+            self.markJobAsDone(jobId, err, result, resultsMeta);
+            self.checkBacklogForJobs();
+          });
+        } else {
+          self.workerFunction(job.payload, function(err, result, resultsMeta) {
+            self.currentJobs--;
+            self.markJobAsDone(jobId, err, result, resultsMeta);
+            self.checkBacklogForJobs();
+          });
+        }
       }
       self.checkBacklogForJobs();
     });
